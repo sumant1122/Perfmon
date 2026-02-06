@@ -39,6 +39,10 @@ type metricsMsg struct {
 	metrics metricsSample
 }
 
+type systemMsg struct {
+	info systemInfo
+}
+
 type metricsSample struct {
 	load   float64
 	cpu    float64
@@ -57,6 +61,12 @@ type metricHistory struct {
 	net  []float64
 }
 
+type systemInfo struct {
+	snapshot string
+	disk     string
+	net      string
+}
+
 type model struct {
 	tabs       []tab
 	active     int
@@ -64,6 +74,7 @@ type model struct {
 	content    string
 	statusLine string
 	metrics    metricHistory
+	system     systemInfo
 	themeIndex int
 	spinnerIdx int
 	width      int
@@ -73,6 +84,7 @@ type model struct {
 const refreshInterval = 5 * time.Second
 const historyLength = 30
 const spinnerInterval = 200 * time.Millisecond
+const fixedRows = 9
 const version = "0.1.0"
 
 func main() {
@@ -262,7 +274,7 @@ func buildDefaultTabs() []tab {
 		{title: "uptime", cmd: []string{"uptime"}},
 		{title: "vmstat", cmd: []string{"vmstat"}},
 		{title: "mpstat -P ALL", cmd: []string{"mpstat", "-P", "ALL"}},
-		{title: "pidstat -P ALL", cmd: []string{"pidstat", "-P", "ALL"}},
+		{title: "pidstat -p ALL", cmd: []string{"pidstat", "-p", "ALL"}},
 		{title: "iostat", cmd: []string{"iostat"}},
 		{title: freeTitle, cmd: freeCmd},
 		{title: "sar -n DEV", cmd: []string{"sar", "-n", "DEV"}},
@@ -334,9 +346,9 @@ func (m model) Init() tea.Cmd {
 	if m.tabs[m.active].disabled {
 		m.content = m.tabs[m.active].disabledMsg
 		m.viewport.SetContent(m.content)
-		return tea.Batch(tick(), spinnerTick(), sampleMetricsCmd())
+		return tea.Batch(tick(), spinnerTick(), sampleMetricsCmd(), sampleSystemCmd())
 	}
-	return tea.Batch(runCommandCmd(m.tabs[m.active]), tick(), spinnerTick(), sampleMetricsCmd())
+	return tea.Batch(runCommandCmd(m.tabs[m.active]), tick(), spinnerTick(), sampleMetricsCmd(), sampleSystemCmd())
 }
 
 func tick() tea.Cmd {
@@ -389,13 +401,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.viewport.Width = clampMin(msg.Width-2, 0)
-		m.viewport.Height = clampMin(msg.Height-7, 0)
+		m.viewport.Height = clampMin(msg.Height-fixedRows, 0)
 		m.viewport.SetContent(m.content)
 	case tickMsg:
 		if m.tabs[m.active].disabled {
-			return m, tea.Batch(tick(), sampleMetricsCmd())
+			return m, tea.Batch(tick(), sampleMetricsCmd(), sampleSystemCmd())
 		}
-		return m, tea.Batch(runCommandCmd(m.tabs[m.active]), tick(), sampleMetricsCmd())
+		return m, tea.Batch(runCommandCmd(m.tabs[m.active]), tick(), sampleMetricsCmd(), sampleSystemCmd())
 	case spinnerMsg:
 		m.spinnerIdx = (m.spinnerIdx + 1) % len(spinnerFrames)
 		return m, spinnerTick()
@@ -412,6 +424,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case metricsMsg:
 		m.metrics = updateHistory(m.metrics, msg.metrics)
+	case systemMsg:
+		m.system = msg.info
 	}
 
 	var cmd tea.Cmd
@@ -434,6 +448,9 @@ func (m model) onTabSelected() tea.Cmd {
 func (m model) View() string {
 	header := renderTabs(m.tabs, m.active, m.width)
 	summary := renderSummary(m.metrics, m.width)
+	snapshot := renderInfoLine(m.system.snapshot, m.width)
+	disk := renderInfoLine(m.system.disk, m.width)
+	net := renderInfoLine(m.system.net, m.width)
 	title := renderContentTitle(m.tabs[m.active].title, m.width)
 	content := contentBoxStyle.Width(m.width).Render(m.viewport.View())
 	footer := renderFooter(m.statusLine, spinnerFrames[m.spinnerIdx], m.width)
@@ -442,6 +459,9 @@ func (m model) View() string {
 		lipgloss.Left,
 		header,
 		summary,
+		snapshot,
+		disk,
+		net,
 		title,
 		content,
 		footer,
@@ -460,6 +480,7 @@ var (
 	disabledTab     lipgloss.Style
 	footerStyle     lipgloss.Style
 	summaryStyle    lipgloss.Style
+	infoStyle       lipgloss.Style
 	contentBoxStyle lipgloss.Style
 	overflowStyle   lipgloss.Style
 )
@@ -519,6 +540,7 @@ func applyTheme(index int) {
 	disabledTab = lipgloss.NewStyle().Foreground(muted).Background(background).Faint(true).Padding(0, 1)
 	footerStyle = lipgloss.NewStyle().Foreground(muted).Background(background).Padding(0, 1)
 	summaryStyle = lipgloss.NewStyle().Foreground(ink).Background(accentDark).Padding(0, 1)
+	infoStyle = lipgloss.NewStyle().Foreground(ink).Background(background).Padding(0, 1)
 	contentBoxStyle = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(muted).
@@ -678,6 +700,16 @@ func renderSummary(history metricHistory, width int) string {
 	return summaryStyle.Width(width).Render(row)
 }
 
+func renderInfoLine(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if strings.TrimSpace(text) == "" {
+		text = " "
+	}
+	return infoStyle.Width(width).Render(text)
+}
+
 func renderContentTitle(title string, width int) string {
 	if width <= 0 {
 		return ""
@@ -747,6 +779,12 @@ func sampleMetricsCmd() tea.Cmd {
 	}
 }
 
+func sampleSystemCmd() tea.Cmd {
+	return func() tea.Msg {
+		return systemMsg{info: sampleSystem()}
+	}
+}
+
 func sampleMetrics() metricsSample {
 	var sample metricsSample
 	if load, ok := getLoadAvg(); ok {
@@ -766,6 +804,144 @@ func sampleMetrics() metricsSample {
 		sample.okNet = true
 	}
 	return sample
+}
+
+func sampleSystem() systemInfo {
+	var info systemInfo
+	load, _ := getLoadAvg()
+	cpu, _ := getCPUUsage()
+	mem, _ := getMemUsage()
+	uptime := getUptimeShort()
+	info.snapshot = fmt.Sprintf("Snapshot: CPU %0.0f%%  MEM %0.0f%%  LOAD %0.2f  UPTIME %s", cpu, mem, load, uptime)
+
+	if disk := getDiskSummary(); disk != "" {
+		info.disk = "Disk: " + disk
+	}
+	if net := getNetSummary(); net != "" {
+		info.net = "Net: " + net
+	}
+	return info
+}
+
+func getUptimeShort() string {
+	if _, err := exec.LookPath("uptime"); err != nil {
+		return "unknown"
+	}
+	out, err := runQuickCmd([]string{"uptime"}, 2*time.Second)
+	if err != nil {
+		return "unknown"
+	}
+	line := strings.TrimSpace(out)
+	idx := strings.Index(line, " up ")
+	if idx == -1 {
+		return "unknown"
+	}
+	part := line[idx+4:]
+	if cut := strings.Index(part, "load average"); cut != -1 {
+		part = part[:cut]
+	}
+	if cut := strings.Index(part, "load averages"); cut != -1 {
+		part = part[:cut]
+	}
+	if cut := strings.Index(part, " user"); cut != -1 {
+		part = part[:cut]
+	}
+	return strings.Trim(part, " ,")
+}
+
+func getDiskSummary() string {
+	if _, err := exec.LookPath("df"); err != nil {
+		return ""
+	}
+	out, err := runQuickCmd([]string{"df", "-h", "/"}, 2*time.Second)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) < 2 {
+		return ""
+	}
+	fields := strings.Fields(lines[1])
+	if len(fields) < 5 {
+		return ""
+	}
+	size := fields[1]
+	used := fields[2]
+	usePct := fields[4]
+	return fmt.Sprintf("/ %s used %s (%s)", size, used, usePct)
+}
+
+func getNetSummary() string {
+	rate, ok := getNetRateKB()
+	if !ok {
+		return ""
+	}
+	iface := getPrimaryIface()
+	if iface == "" {
+		iface = "iface"
+	}
+	return fmt.Sprintf("%s %s", iface, formatRate(rate))
+}
+
+func getPrimaryIface() string {
+	if data, err := os.ReadFile("/proc/net/dev"); err == nil {
+		if iface := firstIfaceLinux(data); iface != "" {
+			return iface
+		}
+	}
+	if _, err := exec.LookPath("netstat"); err == nil {
+		if iface := firstIfaceDarwin(); iface != "" {
+			return iface
+		}
+	}
+	return ""
+}
+
+func firstIfaceLinux(data []byte) string {
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if !strings.Contains(line, ":") {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		iface := strings.TrimSpace(parts[0])
+		if iface == "lo" || strings.HasPrefix(iface, "lo") {
+			continue
+		}
+		return iface
+	}
+	return ""
+}
+
+func firstIfaceDarwin() string {
+	out, err := runQuickCmd([]string{"netstat", "-ib"}, 2*time.Second)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) < 2 {
+		return ""
+	}
+	header := strings.Fields(lines[0])
+	nIdx := indexOf(header, "Name")
+	if nIdx == -1 {
+		return ""
+	}
+	for _, line := range lines[1:] {
+		fields := strings.Fields(line)
+		if len(fields) <= nIdx {
+			continue
+		}
+		iface := fields[nIdx]
+		if iface == "lo0" || strings.HasPrefix(iface, "lo") {
+			continue
+		}
+		return iface
+	}
+	return ""
 }
 
 func getLoadAvg() (float64, bool) {
