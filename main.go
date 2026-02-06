@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -71,16 +72,31 @@ type model struct {
 
 const refreshInterval = 5 * time.Second
 const historyLength = 30
-const flameHeight = 4
 const spinnerInterval = 200 * time.Millisecond
+const version = "0.1.0"
 
 func main() {
+	if printVersion() {
+		return
+	}
 	m := newModel()
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func printVersion() bool {
+	var showVersion bool
+	flag.BoolVar(&showVersion, "version", false, "print version and exit")
+	flag.BoolVar(&showVersion, "v", false, "print version and exit")
+	flag.Parse()
+	if showVersion {
+		fmt.Printf("perfmon %s\n", version)
+		return true
+	}
+	return false
 }
 
 func newModel() model {
@@ -373,7 +389,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.viewport.Width = clampMin(msg.Width-2, 0)
-		m.viewport.Height = clampMin(msg.Height-(flameHeight+5), 0)
+		m.viewport.Height = clampMin(msg.Height-7, 0)
 		m.viewport.SetContent(m.content)
 	case tickMsg:
 		if m.tabs[m.active].disabled {
@@ -418,7 +434,6 @@ func (m model) onTabSelected() tea.Cmd {
 func (m model) View() string {
 	header := renderTabs(m.tabs, m.active, m.width)
 	summary := renderSummary(m.metrics, m.width)
-	flame := renderFlame(m.metrics, m.width)
 	title := renderContentTitle(m.tabs[m.active].title, m.width)
 	content := contentBoxStyle.Width(m.width).Render(m.viewport.View())
 	footer := renderFooter(m.statusLine, spinnerFrames[m.spinnerIdx], m.width)
@@ -427,7 +442,6 @@ func (m model) View() string {
 		lipgloss.Left,
 		header,
 		summary,
-		flame,
 		title,
 		content,
 		footer,
@@ -446,10 +460,6 @@ var (
 	disabledTab     lipgloss.Style
 	footerStyle     lipgloss.Style
 	summaryStyle    lipgloss.Style
-	flameStyle      lipgloss.Style
-	cpuStyle        lipgloss.Style
-	memStyle        lipgloss.Style
-	netStyle        lipgloss.Style
 	contentBoxStyle lipgloss.Style
 	overflowStyle   lipgloss.Style
 )
@@ -461,9 +471,6 @@ type theme struct {
 	ink        string
 	muted      string
 	background string
-	cpu        string
-	mem        string
-	net        string
 }
 
 var themes = []theme{
@@ -474,9 +481,6 @@ var themes = []theme{
 		ink:        "#E6EDF3",
 		muted:      "#8AA1A8",
 		background: "#0B1115",
-		cpu:        "#E06C75",
-		mem:        "#E5C07B",
-		net:        "#61AFEF",
 	},
 	{
 		name:       "Sand",
@@ -485,9 +489,6 @@ var themes = []theme{
 		ink:        "#F2E8D5",
 		muted:      "#B8A387",
 		background: "#1A140D",
-		cpu:        "#F38BA8",
-		mem:        "#F9E2AF",
-		net:        "#89B4FA",
 	},
 	{
 		name:       "Day",
@@ -496,9 +497,6 @@ var themes = []theme{
 		ink:        "#0B1220",
 		muted:      "#506072",
 		background: "#F7FAFF",
-		cpu:        "#DC2626",
-		mem:        "#D97706",
-		net:        "#2563EB",
 	},
 }
 
@@ -521,10 +519,6 @@ func applyTheme(index int) {
 	disabledTab = lipgloss.NewStyle().Foreground(muted).Background(background).Faint(true).Padding(0, 1)
 	footerStyle = lipgloss.NewStyle().Foreground(muted).Background(background).Padding(0, 1)
 	summaryStyle = lipgloss.NewStyle().Foreground(ink).Background(accentDark).Padding(0, 1)
-	flameStyle = lipgloss.NewStyle().Foreground(ink).Background(background).Padding(0, 1)
-	cpuStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(t.cpu))
-	memStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(t.mem))
-	netStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(t.net))
 	contentBoxStyle = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(muted).
@@ -690,106 +684,6 @@ func renderContentTitle(title string, width int) string {
 	}
 	label := fmt.Sprintf(" %s ", title)
 	return summaryStyle.Width(width).Render(label)
-}
-
-func renderFlame(history metricHistory, width int) string {
-	count := minInt(len(history.cpu), len(history.mem))
-	count = minInt(count, len(history.net))
-	if count == 0 {
-		return flameStyle.Width(width).Render("FLAME CPU/MEM/NET unavailable")
-	}
-
-	start := 0
-	visible := width - 2
-	if visible < 1 {
-		visible = 1
-	}
-	if count > visible {
-		start = count - visible
-	}
-
-	cpu := history.cpu[start:count]
-	mem := history.mem[start:count]
-	net := history.net[start:count]
-
-	netMax := maxFloat(net)
-	if netMax < 1 {
-		netMax = 1
-	}
-
-	rows := make([]strings.Builder, flameHeight)
-	for i := 0; i < len(cpu); i++ {
-		c := clampFloat(cpu[i], 0, 100)
-		m := clampFloat(mem[i], 0, 100)
-		n := clampFloat((net[i]/netMax)*100, 0, 100)
-		blocks := flameBlocks(c, m, n, flameHeight)
-		for r := 0; r < flameHeight; r++ {
-			rows[r].WriteString(blocks[r])
-		}
-	}
-
-	lines := make([]string, flameHeight)
-	for i := 0; i < flameHeight; i++ {
-		lines[i] = rows[i].String()
-	}
-	content := strings.Join(lines, "\n")
-	return flameStyle.Width(width).Render(content)
-}
-
-func flameBlocks(cpu, mem, net float64, height int) []string {
-	heights := splitHeights(cpu, mem, net, height)
-	netH, memH, cpuH := heights[0], heights[1], heights[2]
-	blocks := make([]string, height)
-	for r := 0; r < height; r++ {
-		level := height - 1 - r
-		switch {
-		case level < netH:
-			blocks[r] = netStyle.Render("█")
-		case level < netH+memH:
-			blocks[r] = memStyle.Render("█")
-		case level < netH+memH+cpuH:
-			blocks[r] = cpuStyle.Render("█")
-		default:
-			blocks[r] = " "
-		}
-	}
-	return blocks
-}
-
-func splitHeights(cpu, mem, net float64, height int) []int {
-	total := cpu + mem + net
-	if total == 0 {
-		return []int{0, 0, 0}
-	}
-	unit := total / float64(height)
-	if unit == 0 {
-		return []int{0, 0, 0}
-	}
-	netH := int((net / unit) + 0.5)
-	memH := int((mem / unit) + 0.5)
-	cpuH := int((cpu / unit) + 0.5)
-	sum := netH + memH + cpuH
-	for sum > height {
-		if netH >= memH && netH >= cpuH && netH > 0 {
-			netH--
-		} else if memH >= cpuH && memH > 0 {
-			memH--
-		} else if cpuH > 0 {
-			cpuH--
-		}
-		sum = netH + memH + cpuH
-	}
-	for sum < height {
-		if netH <= memH && netH <= cpuH {
-			netH++
-		} else if memH <= cpuH {
-			memH++
-		} else {
-			cpuH++
-		}
-		sum = netH + memH + cpuH
-	}
-	return []int{netH, memH, cpuH}
 }
 
 func sparkline(values []float64, min, max float64) string {
