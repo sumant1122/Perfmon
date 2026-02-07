@@ -1,0 +1,43 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+  govet:
+    check-shadowing: true
+  misspell:
+    locale: US
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+    - goconst
+    - gofmt
+    - goimports
+    - misspell
+    - unconvert
+
+issues:
+  exclude-use-default: false
+  exclude:
+    # Exclude common false positives or annoyances
+    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
