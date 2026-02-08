@@ -32,34 +32,13 @@ Quit with `q`, `Q`, `Esc`, or `Ctrl+C`.
 go run . --version
 ```
 
-## Config
+### Configuration
 Perfmon can load a custom tab list from a TOML file. Search order:
 1. `PERFMON_CONFIG` env var (full path)
 2. `$XDG_CONFIG_HOME/perfmon/config.toml` (or `~/.config/perfmon/config.toml`)
 3. `./perfmon.toml`
 
 Example `perfmon.toml`:
-```toml
-[[tab]]
-title = "uptime"
-cmd = ["uptime"]
-
-[[tab]]
-title = "top"
-cmd = ["top", "-b", "-n", "1"]
-```
-
-## Command Notes
-- Load: `uptime`
-- CPU: `vmstat` (fallback `mpstat`)
-- Memory: `free -m` (Linux)
-- Net: `/proc/net/dev` (Linux) or `netstat -ib` (macOS)
-
-If no configuration file is found, Perfmon falls back to a sensible set of defaults.
-
-### Configuration
-You can customize tabs and refresh rates in `perfmon.toml`.
-
 ```toml
 # Global refresh rate (default: 5s)
 global_refresh_interval = "5s"
@@ -73,6 +52,14 @@ title = "top (fast)"
 cmd = ["top", "-b", "-n", "1"]
 refresh_interval = "1s" # Override global rate
 ```
+
+### Default Commands
+If no configuration file is found, Perfmon falls back to a sensible default set:
+- **Load**: `uptime`
+- **CPU**: `vmstat` (or `mpstat`)
+- **Memory**: `free -m` (Linux) or `vm_stat` (macOS)
+- **Net**: `/proc/net/dev` (Linux) or `netstat` (macOS)
+- **Top**: `top`
 
 
 ## Development
