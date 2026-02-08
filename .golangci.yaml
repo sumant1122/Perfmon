@@ -15,7 +15,6 @@ linters-settings:
       - opinionated
       - performance
       - style
-  govet:
   misspell:
     locale: US
 
@@ -24,7 +23,6 @@ linters:
   enable:
     - errcheck
     - gosimple
-    - govet
     - ineffassign
     - staticcheck
     - typecheck
