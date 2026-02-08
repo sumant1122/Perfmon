@@ -34,7 +34,6 @@ type systemMsg struct {
 }
 
 const (
-	refreshInterval = 5 * time.Second
 	spinnerInterval = 200 * time.Millisecond
 	fixedRows       = 9
 )
@@ -60,8 +59,12 @@ func NewModel() Model {
 	vp := viewport.New(0, 0)
 	vp.SetContent("Loading...")
 
+	// config.Load() now returns (Config, []Tab), we only need []Tab here
+	// but the signature of Load changed in previous step, so we need to adapt
+	_, tabs := config.Load()
+
 	return Model{
-		tabs:       config.Load(),
+		tabs:       tabs,
 		active:     0,
 		viewport:   vp,
 		themeIndex: 0,
@@ -70,15 +73,18 @@ func NewModel() Model {
 }
 
 func (m Model) Init() tea.Cmd {
+	interval := m.tabs[m.active].RefreshInterval.Duration
 	if m.tabs[m.active].Disabled {
 		m.content = m.tabs[m.active].DisabledMsg
 		m.viewport.SetContent(m.content)
-		return tea.Batch(tick(), spinnerTick(), sampleMetricsCmd(), sampleSystemCmd())
+		return tea.Batch(tick(interval), spinnerTick(), sampleMetricsCmd(), sampleSystemCmd())
 	}
-	return tea.Batch(runCommandCmd(m.tabs[m.active]), tick(), spinnerTick(), sampleMetricsCmd(), sampleSystemCmd())
+	return tea.Batch(runCommandCmd(m.tabs[m.active]), tick(interval), spinnerTick(), sampleMetricsCmd(), sampleSystemCmd())
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	interval := m.tabs[m.active].RefreshInterval.Duration
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if isQuitKey(msg) {
@@ -109,9 +115,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.SetContent(m.content)
 	case tickMsg:
 		if m.tabs[m.active].Disabled {
-			return m, tea.Batch(tick(), sampleMetricsCmd(), sampleSystemCmd())
+			return m, tea.Batch(tick(interval), sampleMetricsCmd(), sampleSystemCmd())
 		}
-		return m, tea.Batch(runCommandCmd(m.tabs[m.active]), tick(), sampleMetricsCmd(), sampleSystemCmd())
+		return m, tea.Batch(runCommandCmd(m.tabs[m.active]), tick(interval), sampleMetricsCmd(), sampleSystemCmd())
 	case spinnerMsg:
 		m.spinnerIdx = (m.spinnerIdx + 1) % len(spinnerFrames)
 		return m, spinnerTick()
@@ -124,7 +130,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.statusLine = fmt.Sprintf("error: %v", msg.err)
 		} else {
-			m.statusLine = fmt.Sprintf("updated %s", time.Now().Format("15:04:05"))
+			m.statusLine = fmt.Sprintf("updated %s (every %s)", time.Now().Format("15:04:05"), interval)
 		}
 	case metricsMsg:
 		m.metrics = monitor.UpdateHistory(m.metrics, msg.metrics)
@@ -172,8 +178,8 @@ func (m Model) onTabSelected() tea.Cmd {
 	return runCommandCmd(m.tabs[m.active])
 }
 
-func tick() tea.Cmd {
-	return tea.Tick(refreshInterval, func(t time.Time) tea.Msg { return tickMsg(t) })
+func tick(d time.Duration) tea.Cmd {
+	return tea.Tick(d, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
 func spinnerTick() tea.Cmd {
@@ -207,7 +213,7 @@ func runCommandCmd(t config.Tab) tea.Cmd {
 	}
 }
 
-// Rendering helpers
+// Rendering helpers (unchanged)
 
 func (m Model) renderTabs(tabs []config.Tab, active, width int) string {
 	if width <= 0 {

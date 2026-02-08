@@ -7,35 +7,58 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
 
 type Tab struct {
-	Title       string   `toml:"title"`
-	Cmd         []string `toml:"cmd"`
-	Disabled    bool     `toml:"-"`
-	DisabledMsg string   `toml:"-"`
+	Title           string   `toml:"title"`
+	Cmd             []string `toml:"cmd"`
+	Disabled        bool     `toml:"-"`
+	DisabledMsg     string   `toml:"-"`
+	RefreshInterval duration `toml:"refresh_interval"`
 }
 
 type Config struct {
-	Tabs []Tab `toml:"tab"`
+	Tabs                  []Tab    `toml:"tab"`
+	GlobalRefreshInterval duration `toml:"global_refresh_interval"`
 }
 
-func Load() []Tab {
-	if cfgTabs, ok := loadFromConfig(); ok {
-		validated := make([]Tab, 0, len(cfgTabs))
-		for _, t := range cfgTabs {
+// Custom duration type for TOML parsing
+type duration struct {
+	time.Duration
+}
+
+func (d *duration) UnmarshalText(text []byte) error {
+	var err error
+	d.Duration, err = time.ParseDuration(string(text))
+	return err
+}
+
+func Load() (Config, []Tab) {
+	if cfg, ok := loadFromConfig(); ok {
+		validated := make([]Tab, 0, len(cfg.Tabs))
+		for _, t := range cfg.Tabs {
 			validated = append(validated, validateTab(t))
 		}
 		if len(validated) > 0 {
-			return validated
+			// Apply global refresh if tab refresh is missing
+			if cfg.GlobalRefreshInterval.Duration <= 0 {
+				cfg.GlobalRefreshInterval.Duration = 5 * time.Second
+			}
+			for i := range validated {
+				if validated[i].RefreshInterval.Duration <= 0 {
+					validated[i].RefreshInterval = cfg.GlobalRefreshInterval
+				}
+			}
+			return cfg, validated
 		}
 	}
-	return buildDefaultTabs()
+	return Config{GlobalRefreshInterval: duration{5 * time.Second}}, buildDefaultTabs()
 }
 
-func loadFromConfig() ([]Tab, bool) {
+func loadFromConfig() (Config, bool) {
 	paths := configPaths()
 	for _, path := range paths {
 		data, err := os.ReadFile(path)
@@ -50,7 +73,7 @@ func loadFromConfig() ([]Tab, bool) {
 		if len(cfg.Tabs) == 0 {
 			continue
 		}
-		
+
 		// Filter invalid tabs
 		validTabs := make([]Tab, 0, len(cfg.Tabs))
 		for _, t := range cfg.Tabs {
@@ -58,12 +81,13 @@ func loadFromConfig() ([]Tab, bool) {
 				validTabs = append(validTabs, t)
 			}
 		}
-		
+
 		if len(validTabs) > 0 {
-			return validTabs, true
+			cfg.Tabs = validTabs
+			return cfg, true
 		}
 	}
-	return nil, false
+	return Config{}, false
 }
 
 func configPaths() []string {
@@ -134,17 +158,19 @@ func buildDefaultTabs() []Tab {
 
 	fetchTitle, fetchCmd := detectFetchCmd()
 
+	defaultInterval := duration{5 * time.Second}
+
 	tabs := []Tab{
-		{Title: "uptime", Cmd: []string{"uptime"}},
-		{Title: "vmstat", Cmd: []string{"vmstat"}},
-		{Title: "mpstat -P ALL", Cmd: []string{"mpstat", "-P", "ALL"}},
-		{Title: "pidstat -p ALL", Cmd: []string{"pidstat", "-p", "ALL"}},
-		{Title: "iostat", Cmd: []string{"iostat"}},
-		{Title: freeTitle, Cmd: freeCmd},
-		{Title: "sar -n DEV", Cmd: []string{"sar", "-n", "DEV"}},
-		{Title: "sar -n TCP,ETCP", Cmd: []string{"sar", "-n", "TCP,ETCP"}},
-		{Title: topTitle, Cmd: topCmd},
-		{Title: fetchTitle, Cmd: fetchCmd},
+		{Title: "uptime", Cmd: []string{"uptime"}, RefreshInterval: defaultInterval},
+		{Title: "vmstat", Cmd: []string{"vmstat"}, RefreshInterval: defaultInterval},
+		{Title: "mpstat -P ALL", Cmd: []string{"mpstat", "-P", "ALL"}, RefreshInterval: defaultInterval},
+		{Title: "pidstat -p ALL", Cmd: []string{"pidstat", "-p", "ALL"}, RefreshInterval: defaultInterval},
+		{Title: "iostat", Cmd: []string{"iostat"}, RefreshInterval: defaultInterval},
+		{Title: freeTitle, Cmd: freeCmd, RefreshInterval: defaultInterval},
+		{Title: "sar -n DEV", Cmd: []string{"sar", "-n", "DEV"}, RefreshInterval: defaultInterval},
+		{Title: "sar -n TCP,ETCP", Cmd: []string{"sar", "-n", "TCP,ETCP"}, RefreshInterval: defaultInterval},
+		{Title: topTitle, Cmd: topCmd, RefreshInterval: defaultInterval},
+		{Title: fetchTitle, Cmd: fetchCmd, RefreshInterval: defaultInterval},
 	}
 
 	for i := range tabs {

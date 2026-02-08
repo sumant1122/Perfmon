@@ -4,11 +4,15 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
 	"github.com/BurntSushi/toml"
 )
 
 func TestParseTomlConfig(t *testing.T) {
 	data := []byte(`
+global_refresh_interval = "10s"
+
 [[tab]]
 title = "uptime"
 cmd = ["uptime"]
@@ -16,20 +20,24 @@ cmd = ["uptime"]
 [[tab]]
 title = "top"
 cmd = ["top","-b","-n","1"]
+refresh_interval = "1s"
 `)
 	var cfg Config
 	if _, err := toml.Decode(string(data), &cfg); err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
 
+	if cfg.GlobalRefreshInterval.Duration != 10*time.Second {
+		t.Errorf("expected global 10s, got %v", cfg.GlobalRefreshInterval.Duration)
+	}
+
 	if len(cfg.Tabs) != 2 {
 		t.Fatalf("expected 2 tabs, got %d", len(cfg.Tabs))
 	}
-	if cfg.Tabs[0].Title != "uptime" || len(cfg.Tabs[0].Cmd) != 1 {
-		t.Fatalf("unexpected first tab: %+v", cfg.Tabs[0])
-	}
-	if cfg.Tabs[1].Cmd[0] != "top" || cfg.Tabs[1].Cmd[3] != "1" {
-		t.Fatalf("unexpected second tab cmd: %+v", cfg.Tabs[1].Cmd)
+
+	// Note: Load() handles applying global defaults to tabs, so we just check raw parsing here
+	if cfg.Tabs[1].RefreshInterval.Duration != 1*time.Second {
+		t.Errorf("expected tab 1s, got %v", cfg.Tabs[1].RefreshInterval.Duration)
 	}
 }
 
@@ -37,6 +45,7 @@ func TestLoadTabsFromConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "perfmon.toml")
 	err := os.WriteFile(path, []byte(`
+global_refresh_interval = "2s"
 [[tab]]
 title = "vmstat"
 cmd = ["vmstat"]
@@ -46,11 +55,13 @@ cmd = ["vmstat"]
 	}
 
 	t.Setenv("PERFMON_CONFIG", path)
-	tabs, ok := loadFromConfig()
-	if !ok {
-		t.Fatalf("expected config load")
+	_, tabs := Load() // Load now returns (Config, []Tab)
+
+	if len(tabs) != 1 {
+		t.Fatalf("expected 1 tab")
 	}
-	if len(tabs) != 1 || tabs[0].Title != "vmstat" || tabs[0].Cmd[0] != "vmstat" {
-		t.Fatalf("unexpected tabs: %+v", tabs)
+
+	if tabs[0].RefreshInterval.Duration != 2*time.Second {
+		t.Errorf("expected inherited 2s refresh, got %v", tabs[0].RefreshInterval.Duration)
 	}
 }

@@ -55,9 +55,24 @@ cmd = ["top", "-b", "-n", "1"]
 - Memory: `free -m` (Linux)
 - Net: `/proc/net/dev` (Linux) or `netstat -ib` (macOS)
 
-If no configuration file is found, Perfmon falls back to a sensible set of defaults (uptime, vmstat, mpstat, iostat, free, sar, top, neofetch).
+If no configuration file is found, Perfmon falls back to a sensible set of defaults.
 
-If a command is missing, the tab is disabled and a hint is shown.
+### Configuration
+You can customize tabs and refresh rates in `perfmon.toml`.
+
+```toml
+# Global refresh rate (default: 5s)
+global_refresh_interval = "5s"
+
+[[tab]]
+title = "uptime"
+cmd = ["uptime"]
+
+[[tab]]
+title = "top (fast)"
+cmd = ["top", "-b", "-n", "1"]
+refresh_interval = "1s" # Override global rate
+```
 
 
 ## Development
