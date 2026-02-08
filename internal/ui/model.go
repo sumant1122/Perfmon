@@ -116,7 +116,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinnerIdx = (m.spinnerIdx + 1) % len(spinnerFrames)
 		return m, spinnerTick()
 	case cmdResultMsg:
-		m.content = strings.TrimSpace(msg.output)
+		m.content = sanitizeOutput(strings.TrimSpace(msg.output))
 		if m.content == "" {
 			m.content = "(no output)"
 		}
