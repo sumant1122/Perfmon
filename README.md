@@ -1,8 +1,12 @@
 # Perfmon
 Perfmon is a TUI that shows essential performance monitoring commands in one place. It uses a tabbed approach for showing the results, making it quick to find stats in one place.
 
+## Perfmon in Action with default settings
+![Perform_withoutToml](https://github.com/user-attachments/assets/ca66228e-ff7a-410b-95f7-5cd0eb6726ff)
 
-![Perfmon Screenshot](assets/screenshot.png)
+## Perfmon in Action with Toml file using user defined commands
+![Perform_withToml](https://github.com/user-attachments/assets/baa447b2-1c52-4b79-bea8-815cb099acce)
+
 
 ## Features
 - Tabbed command output with keyboard navigation
