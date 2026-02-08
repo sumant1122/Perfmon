@@ -59,8 +59,6 @@ func NewModel() Model {
 	vp := viewport.New(0, 0)
 	vp.SetContent("Loading...")
 
-	// config.Load() now returns (Config, []Tab), we only need []Tab here
-	// but the signature of Load changed in previous step, so we need to adapt
 	_, tabs := config.Load()
 
 	return Model{
@@ -145,10 +143,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string {
 	header := m.renderTabs(m.tabs, m.active, m.width)
-	summary := m.renderSummary(m.metrics, m.width)
-	snapshot := m.renderInfoLine(m.system.Snapshot, m.width)
-	disk := m.renderInfoLine(m.system.Disk, m.width)
-	net := m.renderInfoLine(m.system.Net, m.width)
+	metricsRow := m.renderMetricsRow(m.metrics, m.width)
+	systemRow := m.renderSystemRow(m.system, m.width)
 	title := m.renderContentTitle(m.tabs[m.active].Title, m.width)
 	content := m.styles.ContentBox.Width(m.width).Render(m.viewport.View())
 	footer := m.renderFooter(m.statusLine, spinnerFrames[m.spinnerIdx], m.width)
@@ -156,10 +152,8 @@ func (m Model) View() string {
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		header,
-		summary,
-		snapshot,
-		disk,
-		net,
+		metricsRow,
+		systemRow,
 		title,
 		content,
 		footer,
@@ -213,7 +207,101 @@ func runCommandCmd(t config.Tab) tea.Cmd {
 	}
 }
 
-// Rendering helpers (unchanged)
+// Rendering helpers
+
+// renderMetricsRow renders the top row of sparklines and current values
+func (m Model) renderMetricsRow(history monitor.MetricHistory, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	// Helper to render a single metric block with color
+	renderBlock := func(label string, valStr string, data []float64, min, max float64, isPercent bool) string {
+		// Determine color based on latest value
+		var color lipgloss.Style
+		if len(data) > 0 {
+			last := data[len(data)-1]
+			// Normalize value for color mapping
+			param := last
+			if !isPercent {
+				// efficient approximation for load/net: reasonable max
+				// load: max 4.0 (green), 8.0 (yellow), >8.0 (red)
+				// net: max 1MB/s (green), 10MB/s (yellow), >10MB/s (red)
+				// This is heuristic, percent is easier
+				if max > 0 {
+					param = (last / max) * 100
+				}
+			}
+
+			if param < 50 {
+				color = m.styles.Green
+			} else if param < 80 {
+				color = m.styles.Yellow
+			} else {
+				color = m.styles.Red
+			}
+		} else {
+			color = m.styles.Processing
+		}
+
+		sl := sparkline(data, min, max)
+		// Colorize the sparkline and the value
+		return fmt.Sprintf("%s %s %s", label, color.Render(valStr), color.Render(sl))
+	}
+
+	var blocks []string
+
+	// CPU
+	if len(history.CPU) > 0 {
+		val := history.CPU[len(history.CPU)-1]
+		blocks = append(blocks, renderBlock("CPU", fmt.Sprintf("%0.0f%%", val), history.CPU, 0, 100, true))
+	}
+
+	// MEM
+	if len(history.Mem) > 0 {
+		val := history.Mem[len(history.Mem)-1]
+		blocks = append(blocks, renderBlock("MEM", fmt.Sprintf("%0.0f%%", val), history.Mem, 0, 100, true))
+	}
+
+	// LOAD (heuristic color: <1.0 green, <high yellow, >high red)
+	if len(history.Load) > 0 {
+		val := history.Load[len(history.Load)-1]
+		max := maxFloat(history.Load)
+		if max < 2.0 {
+			max = 2.0
+		} // Minimum scale for load
+
+		// Custom logic for load color
+		var color lipgloss.Style
+		if val < 1.0 {
+			color = m.styles.Green
+		} else if val < 4.0 {
+			color = m.styles.Yellow
+		} else {
+			color = m.styles.Red
+		}
+
+		sl := sparkline(history.Load, 0, max)
+		blocks = append(blocks, fmt.Sprintf("LOAD %s %s", color.Render(fmt.Sprintf("%0.2f", val)), color.Render(sl)))
+	}
+
+	// NET
+	if len(history.Net) > 0 {
+		val := history.Net[len(history.Net)-1]
+		max := maxFloat(history.Net)
+		if max < 1 {
+			max = 1
+		}
+		blocks = append(blocks, renderBlock("NET", monitor.FormatRate(val), history.Net, 0, max, false))
+	}
+
+	if len(blocks) == 0 {
+		return m.styles.Summary.Width(width).Render("Waiting for metrics...")
+	}
+
+	row := strings.Join(blocks, "   ")
+	return m.styles.Summary.Width(width).Render(row)
+}
 
 func (m Model) renderTabs(tabs []config.Tab, active, width int) string {
 	if width <= 0 {
@@ -308,53 +396,28 @@ func (m Model) renderTabs(tabs []config.Tab, active, width int) string {
 	return m.styles.Header.Width(width).Render(row)
 }
 
-func (m Model) renderFooter(status, spinner string, width int) string {
-	help := "q:quit  tab/shift+tab:next/prev  up/down/pgup/pgdn:scroll  t:theme"
-	if status != "" {
-		help = spinner + "  " + status + "  |  " + help
-	} else if spinner != "" {
-		help = spinner + "  " + help
-	}
-	return m.styles.Footer.Width(width).Render(help)
-}
-
-func (m Model) renderSummary(history monitor.MetricHistory, width int) string {
-	parts := make([]string, 0, 4)
-	if len(history.Load) > 0 {
-		max := maxFloat(history.Load)
-		if max < 1 {
-			max = 1
-		}
-		parts = append(parts, fmt.Sprintf("LOAD %s %0.2f", sparkline(history.Load, 0, max), history.Load[len(history.Load)-1]))
-	}
-	if len(history.CPU) > 0 {
-		parts = append(parts, fmt.Sprintf("CPU %s %0.0f%%", sparkline(history.CPU, 0, 100), history.CPU[len(history.CPU)-1]))
-	}
-	if len(history.Mem) > 0 {
-		parts = append(parts, fmt.Sprintf("MEM %s %0.0f%%", sparkline(history.Mem, 0, 100), history.Mem[len(history.Mem)-1]))
-	}
-	if len(history.Net) > 0 {
-		max := maxFloat(history.Net)
-		if max < 1 {
-			max = 1
-		}
-		parts = append(parts, fmt.Sprintf("NET %s %s", sparkline(history.Net, 0, max), monitor.FormatRate(history.Net[len(history.Net)-1])))
-	}
-	row := strings.Join(parts, "  |  ")
-	if row == "" {
-		row = "METRICS unavailable (missing commands)"
-	}
-	return m.styles.Summary.Width(width).Render(row)
-}
-
-func (m Model) renderInfoLine(text string, width int) string {
+func (m Model) renderSystemRow(info monitor.SystemInfo, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	if strings.TrimSpace(text) == "" {
-		text = " "
+
+	var parts []string
+	if info.Disk != "" {
+		parts = append(parts, info.Disk)
 	}
-	return m.styles.Info.Width(width).Render(text)
+	if info.Net != "" {
+		parts = append(parts, info.Net)
+	}
+	if info.Uptime != "" {
+		parts = append(parts, info.Uptime)
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	row := strings.Join(parts, "   ")
+	return m.styles.Info.Width(width).Render(row)
 }
 
 func (m Model) renderContentTitle(title string, width int) string {
@@ -363,6 +426,16 @@ func (m Model) renderContentTitle(title string, width int) string {
 	}
 	label := fmt.Sprintf(" %s ", title)
 	return m.styles.Summary.Width(width).Render(label)
+}
+
+func (m Model) renderFooter(status, spinner string, width int) string {
+	help := "q:quit  tab/shift+tab:next/prev  up/down/pgup/pgdn:scroll  t:theme"
+	if status != "" {
+		help = spinner + "  " + status + "  |  " + help
+	} else if spinner != "" {
+		help = spinner + "  " + help
+	}
+	return m.styles.Footer.Width(width).Render(help)
 }
 
 func sparkline(values []float64, min, max float64) string {

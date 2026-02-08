@@ -48,11 +48,17 @@ type Styles struct {
 	Info        lipgloss.Style
 	ContentBox  lipgloss.Style
 	Overflow    lipgloss.Style
-	Accent      lipgloss.Color
-	AccentDark  lipgloss.Color
-	Ink         lipgloss.Color
-	Muted       lipgloss.Color
-	Background  lipgloss.Color
+	// Semantic colors for metrics
+	Green      lipgloss.Style
+	Yellow     lipgloss.Style
+	Red        lipgloss.Style
+	Processing lipgloss.Style
+
+	Accent     lipgloss.Color
+	AccentDark lipgloss.Color
+	Ink        lipgloss.Color
+	Muted      lipgloss.Color
+	Background lipgloss.Color
 }
 
 func BuildStyles(index int) Styles {
@@ -60,7 +66,7 @@ func BuildStyles(index int) Styles {
 		index = 0
 	}
 	t := Themes[index]
-	
+
 	s := Styles{}
 	s.Accent = lipgloss.Color(t.Accent)
 	s.AccentDark = lipgloss.Color(t.AccentDark)
@@ -80,6 +86,12 @@ func BuildStyles(index int) Styles {
 		BorderForeground(s.Muted).
 		Padding(0, 1)
 	s.Overflow = lipgloss.NewStyle().Foreground(s.Muted).Background(s.Background).Padding(0, 1)
+
+	// Semantic colors
+	s.Green = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ade80")).Background(s.AccentDark)
+	s.Yellow = lipgloss.NewStyle().Foreground(lipgloss.Color("#facc15")).Background(s.AccentDark)
+	s.Red = lipgloss.NewStyle().Foreground(lipgloss.Color("#f87171")).Background(s.AccentDark)
+	s.Processing = lipgloss.NewStyle().Foreground(s.Muted).Background(s.AccentDark)
 
 	return s
 }

@@ -30,9 +30,9 @@ type MetricHistory struct {
 }
 
 type SystemInfo struct {
-	Snapshot string
-	Disk     string
-	Net      string
+	Uptime string
+	Disk   string
+	Net    string
 }
 
 const HistoryLength = 30
@@ -87,17 +87,13 @@ func SampleMetrics() MetricsSample {
 
 func SampleSystem() SystemInfo {
 	var info SystemInfo
-	load, _ := getLoadAvg()
-	cpu, _ := getCPUUsage()
-	mem, _ := getMemUsage()
-	uptime := getUptimeShort()
-	info.Snapshot = fmt.Sprintf("Snapshot: CPU %0.0f%%  MEM %0.0f%%  LOAD %0.2f  UPTIME %s", cpu, mem, load, uptime)
+	info.Uptime = "UPTIME: " + getUptimeShort()
 
 	if disk := getDiskSummary(); disk != "" {
-		info.Disk = "Disk: " + disk
+		info.Disk = "DISK: " + disk
 	}
 	if net := getNetSummary(); net != "" {
-		info.Net = "Net: " + net
+		info.Net = "NET: " + net
 	}
 	return info
 }
