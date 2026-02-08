@@ -1,7 +1,7 @@
 .PHONY: build run test clean
 
 build:
-	go build -o perfmon .
+	go build -ldflags "-X main.version=dev" -o perfmon .
 
 run:
 	go run .
