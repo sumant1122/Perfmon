@@ -16,7 +16,6 @@ linters-settings:
       - performance
       - style
   govet:
-    check-shadowing: true
   misspell:
     locale: US
 
