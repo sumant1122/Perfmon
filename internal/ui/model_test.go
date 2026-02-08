@@ -21,7 +21,10 @@ func TestModelNavigation(t *testing.T) {
 	// Test moving right
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}} // vim binding 'l'
 	newM, _ := m.Update(msg)
-	updatedM := newM.(Model)
+	updatedM, ok := newM.(Model)
+	if !ok {
+		t.Fatal("Expected Model type")
+	}
 
 	if updatedM.active != 1 {
 		t.Errorf("Expected active tab 1, got %d", updatedM.active)
@@ -29,7 +32,10 @@ func TestModelNavigation(t *testing.T) {
 
 	// Test moving right again
 	newM, _ = updatedM.Update(msg)
-	updatedM = newM.(Model)
+	updatedM, ok = newM.(Model)
+	if !ok {
+		t.Fatal("Expected Model type")
+	}
 
 	if updatedM.active != 2 {
 		t.Errorf("Expected active tab 2, got %d", updatedM.active)
@@ -37,7 +43,10 @@ func TestModelNavigation(t *testing.T) {
 
 	// Test wrapping around
 	newM, _ = updatedM.Update(msg)
-	updatedM = newM.(Model)
+	updatedM, ok = newM.(Model)
+	if !ok {
+		t.Fatal("Expected Model type")
+	}
 
 	if updatedM.active != 0 {
 		t.Errorf("Expected wrap around to 0, got %d", updatedM.active)
@@ -46,7 +55,10 @@ func TestModelNavigation(t *testing.T) {
 	// Test moving left (wrapping back)
 	leftMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}}
 	newM, _ = updatedM.Update(leftMsg)
-	updatedM = newM.(Model)
+	updatedM, ok = newM.(Model)
+	if !ok {
+		t.Fatal("Expected Model type")
+	}
 
 	if updatedM.active != 2 {
 		t.Errorf("Expected wrap back to 2, got %d", updatedM.active)
@@ -59,7 +71,10 @@ func TestThemeToggle(t *testing.T) {
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}}
 	newM, _ := m.Update(msg)
-	updatedM := newM.(Model)
+	updatedM, ok := newM.(Model)
+	if !ok {
+		t.Fatal("Expected Model type")
+	}
 
 	if updatedM.themeIndex == initialTheme {
 		t.Error("Theme index should change after pressing 't'")

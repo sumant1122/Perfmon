@@ -36,6 +36,7 @@ type systemMsg struct {
 const (
 	spinnerInterval = 200 * time.Millisecond
 	fixedRows       = 9
+	keyCtrlC        = "ctrl+c"
 )
 
 var spinnerFrames = []string{"|", "/", "-", "\\"}
@@ -89,7 +90,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		switch msg.String() {
-		case "ctrl+c":
+		case keyCtrlC:
 			return m, tea.Quit
 		case "right", "l", "tab":
 			m.active = (m.active + 1) % len(m.tabs)

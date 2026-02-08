@@ -35,7 +35,12 @@ type SystemInfo struct {
 	Net    string
 }
 
-const HistoryLength = 30
+const (
+	HistoryLength = 30
+	unknownStr    = "unknown"
+	loStr         = "lo"
+	lo0Str        = "lo0"
+)
 
 func UpdateHistory(history MetricHistory, sample MetricsSample) MetricHistory {
 	if sample.OkLoad {
@@ -137,16 +142,16 @@ func FormatRate(kbPerSec float64) string {
 
 func getUptimeShort() string {
 	if _, err := exec.LookPath("uptime"); err != nil {
-		return "unknown"
+		return unknownStr
 	}
 	out, err := runQuickCmd([]string{"uptime"}, 2*time.Second)
 	if err != nil {
-		return "unknown"
+		return unknownStr
 	}
 	line := strings.TrimSpace(out)
 	idx := strings.Index(line, " up ")
 	if idx == -1 {
-		return "unknown"
+		return unknownStr
 	}
 	part := line[idx+4:]
 	if cut := strings.Index(part, "load average"); cut != -1 {
@@ -220,7 +225,7 @@ func firstIfaceLinux(data []byte) string {
 			continue
 		}
 		iface := strings.TrimSpace(parts[0])
-		if iface == "lo" || strings.HasPrefix(iface, "lo") {
+		if iface == loStr || strings.HasPrefix(iface, loStr) {
 			continue
 		}
 		return iface
@@ -248,7 +253,7 @@ func firstIfaceDarwin() string {
 			continue
 		}
 		iface := fields[nIdx]
-		if iface == "lo0" || strings.HasPrefix(iface, "lo") {
+		if iface == lo0Str || strings.HasPrefix(iface, loStr) {
 			continue
 		}
 		return iface
@@ -472,7 +477,7 @@ func sumNetBytesLinux(data []byte) (uint64, bool) {
 			continue
 		}
 		iface := strings.TrimSpace(parts[0])
-		if iface == "lo" || strings.HasPrefix(iface, "lo") {
+		if iface == loStr || strings.HasPrefix(iface, loStr) {
 			continue
 		}
 		fields := strings.Fields(parts[1])
@@ -517,7 +522,7 @@ func sumNetBytesDarwin() (uint64, bool) {
 			continue
 		}
 		iface := fields[nIdx]
-		if iface == "lo0" || strings.HasPrefix(iface, "lo") {
+		if iface == lo0Str || strings.HasPrefix(iface, loStr) {
 			continue
 		}
 		ib, err := strconv.ParseUint(fields[iIdx], 10, 64)

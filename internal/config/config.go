@@ -141,10 +141,12 @@ func missingHint(cmd, title string) string {
 	return fmt.Sprintf("Missing %s. Install the command to enable this tab.", cmd)
 }
 
+const osDarwin = "darwin"
+
 func buildDefaultTabs() []Tab {
 	freeCmd := []string{"free", "-m"}
 	freeTitle := "free -m"
-	if runtime.GOOS == "darwin" {
+	if runtime.GOOS == osDarwin {
 		freeCmd = []string{"vm_stat"}
 		freeTitle = "vm_stat (free)"
 	}
