@@ -7,7 +7,7 @@ Perfmon is a TUI that shows essential performance monitoring commands in one pla
 
 ## Perfmon in Action with Toml file using user defined commands
 
-![Perfmon_with_toml](https://github.com/user-attachments/assets/053be0f1-d3ea-4b8f-8b10-8797c7103cb2)
+![Perfmon_with_toml (1)](https://github.com/user-attachments/assets/19025abf-63e0-49c3-b5a5-c5c07f62468b)
 
 ## Features
 - Tabbed command output with keyboard navigation
