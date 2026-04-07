@@ -80,12 +80,16 @@ perfdeck
 
 ## ⚙️ Configuration
 
-Perfdeck is designed to be personalized. It looks for `perfdeck.toml` in:
-1.  `$PERFDECK_CONFIG`
-2.  `~/.config/perfdeck/config.toml`
-3.  Current working directory
+Perfdeck is designed to be personalized. To create your own configuration, create a file named `perfdeck.toml` in one of the following locations (searched in this order):
 
-### 📝 Configuration Schema
+1.  `$PERFDECK_CONFIG` (full path to the file)
+2.  `~/.config/perfdeck/config.toml`
+3.  The current directory (`./perfdeck.toml`)
+
+### 📝 Example `perfdeck.toml`
+
+Create the file with your favorite editor and add the following content to customize your tabs and refresh intervals:
+
 ```toml
 # Interval for updating the sparklines and default tabs
 global_refresh_interval = "5s"
