@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"perfmon/internal/ui"
+	"github.com/sumant1122/Perfmon/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-var version = "0.1.0"
+const version = "0.2.0"
 
 func main() {
 	if printVersion() {

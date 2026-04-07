@@ -1,4 +1,4 @@
-module perfmon
+module github.com/sumant1122/Perfmon
 
 go 1.22
 
