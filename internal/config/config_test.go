@@ -43,7 +43,7 @@ refresh_interval = "1s"
 
 func TestLoadTabsFromConfig(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "perfmon.toml")
+	path := filepath.Join(dir, "perfdeck.toml")
 	err := os.WriteFile(path, []byte(`
 global_refresh_interval = "2s"
 [[tab]]
@@ -54,7 +54,7 @@ cmd = ["vmstat"]
 		t.Fatalf("write: %v", err)
 	}
 
-	t.Setenv("PERFMON_CONFIG", path)
+	t.Setenv("PERFDECK_CONFIG", path)
 	_, tabs := Load() // Load now returns (Config, []Tab)
 
 	if len(tabs) != 1 {

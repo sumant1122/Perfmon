@@ -92,13 +92,13 @@ func loadFromConfig() (Config, bool) {
 
 func configPaths() []string {
 	var paths []string
-	if env := strings.TrimSpace(os.Getenv("PERFMON_CONFIG")); env != "" {
+	if env := strings.TrimSpace(os.Getenv("PERFDECK_CONFIG")); env != "" {
 		paths = append(paths, env)
 	}
 	if cfgDir, err := os.UserConfigDir(); err == nil {
-		paths = append(paths, filepath.Join(cfgDir, "perfmon", "config.toml"))
+		paths = append(paths, filepath.Join(cfgDir, "perfdeck", "config.toml"))
 	}
-	paths = append(paths, "perfmon.toml")
+	paths = append(paths, "perfdeck.toml")
 	return paths
 }
 

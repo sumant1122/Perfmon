@@ -1,6 +1,6 @@
 <div align="center">
 
-# 📊 perfdeck
+# 📊 Perfdeck
 
 **A modern, lightweight, and customizable TUI performance monitor for your terminal.**
 
@@ -16,9 +16,9 @@
 
 ---
 
-## 💡 Why perfdeck?
+## 💡 Why Perfdeck?
 
-Traditional performance monitors often overwhelm users with information or lack the flexibility to show exactly what you need. **perfdeck** solves this by providing:
+Traditional performance monitors often overwhelm users with information or lack the flexibility to show exactly what you need. **Perfdeck** solves this by providing:
 
 -   **Consolidation**: View output from multiple diagnostic tools (like `top`, `vmstat`, `netstat`) in one place.
 -   **Focus**: A clean, tabbed interface lets you switch between different metrics without terminal clutter.
@@ -37,10 +37,10 @@ Traditional performance monitors often overwhelm users with information or lack 
 ## 📸 Screenshots
 
 ### Dark Mode (Default)
-![perfdeck Dark Mode](https://github.com/user-attachments/assets/7a94f63d-02ee-4992-b66d-9adf42a16603)
+![Perfdeck Dark Mode](https://github.com/user-attachments/assets/7a94f63d-02ee-4992-b66d-9adf42a16603)
 
 ### Light Mode
-![perfdeck Light Mode](https://github.com/user-attachments/assets/19025abf-63e0-49c3-b5a5-c5c07f62468b)
+![Perfdeck Light Mode](https://github.com/user-attachments/assets/19025abf-63e0-49c3-b5a5-c5c07f62468b)
 
 ## 🚀 Installation
 
@@ -74,12 +74,12 @@ perfdeck
 | `j` / `k` (or `↓`/`↑`) | Scroll through command output |
 | `t` | Toggle Light/Dark theme |
 | `v` | Display version information |
-| `q` / `Esc` / `Ctrl+C` | Exit perfdeck |
+| `q` / `Esc` / `Ctrl+C` | Exit Perfdeck |
 
 ## ⚙️ Configuration
 
-perfdeck is designed to be personalized. It looks for `perfdeck.toml` in:
-1.  `$PERFMON_CONFIG`
+Perfdeck is designed to be personalized. It looks for `perfdeck.toml` in:
+1.  `$PERFDECK_CONFIG`
 2.  `~/.config/perfdeck/config.toml`
 3.  Current working directory
 
