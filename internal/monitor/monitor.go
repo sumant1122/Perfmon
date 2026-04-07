@@ -308,39 +308,53 @@ func getCPUUsage() (float64, bool) {
 }
 
 func cpuFromVmstat() (float64, bool) {
-	out, err := runQuickCmd([]string{"vmstat"}, 2*time.Second)
+	// On macOS, vmstat 1 2 gives a good average.
+	// On Linux, vmstat gives it in the last line.
+	out, err := runQuickCmd([]string{"vmstat", "1", "2"}, 3*time.Second)
 	if err != nil {
-		return 0, false
+		// Fallback to single shot if 1 2 fails
+		out, err = runQuickCmd([]string{"vmstat"}, 2*time.Second)
+		if err != nil {
+			return 0, false
+		}
 	}
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	if len(lines) < 3 {
 		return 0, false
 	}
-	header := ""
-	values := ""
-	for i := len(lines) - 1; i >= 0; i-- {
-		if strings.TrimSpace(lines[i]) == "" {
-			continue
+
+	// We look for the last line of output
+	valuesLine := lines[len(lines)-1]
+	headerLine := ""
+	// Find the header line (usually the one with "id" or "us")
+	for i := len(lines) - 2; i >= 0; i-- {
+		if strings.Contains(lines[i], "id") || strings.Contains(lines[i], "us") {
+			headerLine = lines[i]
+			break
 		}
-		if values == "" {
-			values = lines[i]
-			continue
+	}
+
+	if headerLine == "" {
+		return 0, false
+	}
+
+	hFields := strings.Fields(headerLine)
+	vFields := strings.Fields(valuesLine)
+
+	// In some vmstat versions (macOS), the header and values might not align perfectly in Fields()
+	// because of sub-headers. We try to find "id" from the end.
+	idx := -1
+	for i := len(hFields) - 1; i >= 0; i-- {
+		if hFields[i] == "id" {
+			idx = i
+			break
 		}
-		header = lines[i]
-		break
 	}
-	if header == "" || values == "" {
+
+	if idx == -1 || idx >= len(vFields) {
 		return 0, false
 	}
-	hFields := strings.Fields(header)
-	vFields := strings.Fields(values)
-	if len(hFields) != len(vFields) {
-		return 0, false
-	}
-	idx := indexOf(hFields, "id")
-	if idx == -1 {
-		return 0, false
-	}
+
 	idle, err := parseFloat(vFields[idx])
 	if err != nil {
 		return 0, false
@@ -391,9 +405,16 @@ func cpuFromMpstat() (float64, bool) {
 }
 
 func getMemUsage() (float64, bool) {
-	if _, err := exec.LookPath("free"); err != nil {
-		return 0, false
+	if _, err := exec.LookPath("free"); err == nil {
+		return memFromFree()
 	}
+	if _, err := exec.LookPath("vm_stat"); err == nil {
+		return memFromVmStat()
+	}
+	return 0, false
+}
+
+func memFromFree() (float64, bool) {
 	out, err := runQuickCmd([]string{"free", "-m"}, 2*time.Second)
 	if err != nil {
 		return 0, false
@@ -417,6 +438,45 @@ func getMemUsage() (float64, bool) {
 		}
 	}
 	return 0, false
+}
+
+func memFromVmStat() (float64, bool) {
+	out, err := runQuickCmd([]string{"vm_stat"}, 2*time.Second)
+	if err != nil {
+		return 0, false
+	}
+	lines := strings.Split(out, "\n")
+	var free, active, inactive, wired, compressed float64
+
+	for _, line := range lines {
+		parts := strings.Split(line, ":")
+		if len(parts) < 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		valStr := strings.TrimSuffix(strings.TrimSpace(parts[1]), ".")
+		val, _ := parseFloat(valStr)
+
+		switch key {
+		case "Pages free":
+			free = val
+		case "Pages active":
+			active = val
+		case "Pages inactive":
+			inactive = val
+		case "Pages wired down":
+			wired = val
+		case "Pages occupied by compressor":
+			compressed = val
+		}
+	}
+
+	total := free + active + inactive + wired + compressed
+	if total == 0 {
+		return 0, false
+	}
+	used := active + wired + compressed
+	return (used / total) * 100, true
 }
 
 var netPrevTotal uint64
